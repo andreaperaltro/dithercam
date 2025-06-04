@@ -45,17 +45,10 @@ function App(): React.ReactElement {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
         tracks.forEach(track => track.stop())
       }
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
     }
-  }, [])
-
-  const handleCapture = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const link = document.createElement('a')
-    link.download = `dithercam-${new Date().toISOString()}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
   }, [])
 
   const applyDithering = useCallback(() => {
@@ -70,10 +63,6 @@ function App(): React.ReactElement {
     const rect = canvas.getBoundingClientRect()
     canvas.width = rect.width * window.devicePixelRatio
     canvas.height = rect.height * window.devicePixelRatio
-
-    // Clear previous frame
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     // Calculate video scaling
     const scale = Math.max(
@@ -101,6 +90,10 @@ function App(): React.ReactElement {
     const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
     const data = imageData.data
 
+    // Clear canvas
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
     // Apply dithering effect
     for (let y = 0; y < canvas.height; y += gridSize) {
       for (let x = 0; x < canvas.width; x += gridSize) {
@@ -114,7 +107,7 @@ function App(): React.ReactElement {
 
         const bayerX = Math.abs(x % 4)
         const bayerY = Math.abs(y % 4)
-        const bayerValue = bayerMatrix[bayerY]?.[bayerX] ?? 8 // Fallback to middle value if undefined
+        const bayerValue = bayerMatrix[bayerY]?.[bayerX] ?? 8
         const normalizedBayer = (bayerValue / 16) - 0.5
         const isWhite = (gray / 255) > (0.5 + normalizedBayer + threshold)
         
@@ -128,11 +121,7 @@ function App(): React.ReactElement {
   }, [gridSize, threshold, bayerMatrix])
 
   useEffect(() => {
-    const animate = () => {
-      animationFrameRef.current = requestAnimationFrame(applyDithering)
-    }
-    animate()
-
+    animationFrameRef.current = requestAnimationFrame(applyDithering)
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
@@ -140,63 +129,82 @@ function App(): React.ReactElement {
     }
   }, [applyDithering])
 
+  const handleCapture = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const link = document.createElement('a')
+    link.download = `dithercam-${new Date().toISOString()}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
+  }, [])
+
   return (
-    <div className="relative min-h-screen bg-black">
-      {/* Hidden video */}
-      <video
-        ref={videoRef}
-        className="hidden"
-        playsInline
-        muted
-      />
-      
-      {/* Canvas */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full"
-        style={{ imageRendering: 'pixelated' }}
-      />
+    <div className="fixed inset-0 flex flex-col bg-black">
+      {/* Camera feed container */}
+      <div className="relative flex-1">
+        <video
+          ref={videoRef}
+          className="hidden"
+          playsInline
+          muted
+        />
+        <canvas
+          ref={canvasRef}
+          className="absolute inset-0 w-full h-full"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
 
-      {/* Controls */}
-      <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur p-4">
-        {/* Grid Size */}
-        <div className="mb-4">
-          <div className="flex justify-between mb-2">
-            <span className="text-white">Grid: {gridSize}px</span>
+      {/* Control panel */}
+      <div className="relative z-10 bg-black/80 backdrop-blur-md border-t border-white/10">
+        <div className="max-w-lg mx-auto p-4 space-y-4">
+          {/* Grid Size */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label htmlFor="grid-size" className="text-white text-sm font-medium">Grid Size</label>
+              <span className="text-white/70 text-sm">{gridSize}px</span>
+            </div>
+            <input
+              id="grid-size"
+              type="range"
+              min="2"
+              max="16"
+              value={gridSize}
+              onChange={(e) => setGridSize(parseInt(e.target.value))}
+              className="w-full"
+            />
           </div>
-          <input
-            type="range"
-            min="2"
-            max="16"
-            value={gridSize}
-            onChange={(e) => setGridSize(parseInt(e.target.value))}
-            className="w-full"
-          />
-        </div>
 
-        {/* Threshold */}
-        <div className="mb-4">
-          <div className="flex justify-between mb-2">
-            <span className="text-white">Threshold: {threshold.toFixed(2)}</span>
+          {/* Threshold */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <label htmlFor="threshold" className="text-white text-sm font-medium">Threshold</label>
+              <span className="text-white/70 text-sm">{threshold.toFixed(2)}</span>
+            </div>
+            <input
+              id="threshold"
+              type="range"
+              min="-1"
+              max="1"
+              step="0.1"
+              value={threshold}
+              onChange={(e) => setThreshold(parseFloat(e.target.value))}
+              className="w-full"
+            />
           </div>
-          <input
-            type="range"
-            min="-1"
-            max="1"
-            step="0.1"
-            value={threshold}
-            onChange={(e) => setThreshold(parseFloat(e.target.value))}
-            className="w-full"
-          />
-        </div>
 
-        {/* Capture Button */}
-        <button
-          onClick={handleCapture}
-          className="w-full bg-white/20 hover:bg-white/30 text-white py-3 rounded-lg"
-        >
-          Capture
-        </button>
+          {/* Capture Button */}
+          <button
+            onClick={handleCapture}
+            className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg text-white font-medium transition-colors"
+          >
+            Capture
+          </button>
+        </div>
+        
+        {/* iOS Safe Area */}
+        <div className="h-[env(safe-area-inset-bottom)]" />
       </div>
     </div>
   )
