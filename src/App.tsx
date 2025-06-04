@@ -140,8 +140,8 @@ function App(): React.ReactElement {
   }, [])
 
   return (
-    <main className="fixed inset-0 bg-black">
-      {/* Hidden video */}
+    <div className="fixed inset-0 overflow-hidden touch-none select-none bg-black">
+      {/* Hidden video element */}
       <video
         ref={videoRef}
         className="hidden"
@@ -149,56 +149,61 @@ function App(): React.ReactElement {
         muted
       />
       
-      {/* Fullscreen canvas */}
+      {/* Full viewport canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
+        className="w-screen h-screen object-cover"
         style={{ imageRendering: 'pixelated' }}
       />
 
-      {/* Floating controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-        <div className="bg-black/60 backdrop-blur-sm rounded-2xl p-4 max-w-sm mx-auto space-y-4">
-          <div>
-            <div className="flex justify-between text-white text-sm mb-1">
-              <span>Grid Size</span>
-              <span>{gridSize}px</span>
+      {/* Floating drawer */}
+      <div className="fixed bottom-0 left-0 right-0">
+        <div className="bg-black/80 backdrop-blur-md px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="max-w-sm mx-auto space-y-4">
+            {/* Grid Size slider */}
+            <div>
+              <div className="flex justify-between text-white mb-2">
+                <span>Grid Size</span>
+                <span>{gridSize}px</span>
+              </div>
+              <input
+                type="range"
+                min="2"
+                max="16"
+                value={gridSize}
+                onChange={(e) => setGridSize(parseInt(e.target.value))}
+                className="w-full"
+              />
             </div>
-            <input
-              type="range"
-              min="2"
-              max="16"
-              value={gridSize}
-              onChange={(e) => setGridSize(parseInt(e.target.value))}
-              className="w-full"
-            />
-          </div>
 
-          <div>
-            <div className="flex justify-between text-white text-sm mb-1">
-              <span>Threshold</span>
-              <span>{threshold.toFixed(2)}</span>
+            {/* Threshold slider */}
+            <div>
+              <div className="flex justify-between text-white mb-2">
+                <span>Threshold</span>
+                <span>{threshold.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.1"
+                value={threshold}
+                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                className="w-full"
+              />
             </div>
-            <input
-              type="range"
-              min="-1"
-              max="1"
-              step="0.1"
-              value={threshold}
-              onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full"
-            />
-          </div>
 
-          <button
-            onClick={handleCapture}
-            className="w-full bg-white/20 hover:bg-white/30 active:bg-white/40 backdrop-blur-sm rounded-lg py-2 text-white font-medium transition-colors"
-          >
-            Capture
-          </button>
+            {/* Capture button */}
+            <button
+              onClick={handleCapture}
+              className="w-full bg-white/20 hover:bg-white/30 active:bg-white/40 py-3 rounded-lg text-white font-medium"
+            >
+              Capture
+            </button>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   )
 }
 
