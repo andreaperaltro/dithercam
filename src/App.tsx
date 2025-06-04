@@ -9,7 +9,6 @@ function App(): React.ReactElement {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [gridSize, setGridSize] = useState(() => 4)
   const [threshold, setThreshold] = useState(() => 0)
-  const [showControls, setShowControls] = useState(() => false)
   const animationFrameRef = useRef<number | undefined>(undefined)
 
   // Bayer matrix 4x4 for dithering
@@ -47,23 +46,6 @@ function App(): React.ReactElement {
         tracks.forEach(track => track.stop())
       }
     }
-  }, [])
-
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    // Calculate threshold based on X position (-1 to 1)
-    const newThreshold = (x / rect.width) * 2 - 1
-    // Calculate grid size based on Y position (2 to 16)
-    const newGridSize = Math.floor(((rect.height - y) / rect.height) * 14 + 2)
-    
-    setThreshold(Math.max(-1, Math.min(1, newThreshold)))
-    setGridSize(Math.max(2, Math.min(16, newGridSize)))
   }, [])
 
   const handleCapture = useCallback(() => {
@@ -172,7 +154,7 @@ function App(): React.ReactElement {
       {/* Fullscreen canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full touch-none"
+        className="w-full h-full"
         style={{ 
           imageRendering: 'pixelated',
           position: 'fixed',
@@ -182,26 +164,56 @@ function App(): React.ReactElement {
           height: '100%',
           objectFit: 'cover'
         }}
-        onPointerMove={handlePointerMove}
-        onPointerDown={() => setShowControls(true)}
       />
 
-      {/* Capture button */}
-      <button
-        onClick={handleCapture}
-        className="absolute bottom-8 left-1/2 -translate-x-1/2 w-20 h-20 rounded-full bg-white/20 backdrop-blur-sm border-4 border-white/80 flex items-center justify-center shadow-lg z-50"
-        aria-label="Capture photo"
-      >
-        <div className="w-14 h-14 rounded-full bg-white shadow-inner"></div>
-      </button>
+      {/* Floating Control Panel */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-sm">
+        <div className="max-w-lg mx-auto space-y-4">
+          {/* Grid Size Slider */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="text-white text-sm">Grid Size</label>
+              <span className="text-white text-sm">{gridSize}px</span>
+            </div>
+            <input
+              type="range"
+              min="2"
+              max="16"
+              value={gridSize}
+              onChange={(e) => setGridSize(parseInt(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white"
+            />
+          </div>
 
-      {/* Debug overlay (optional) */}
-      {showControls && (
-        <div className="absolute top-4 left-4 bg-black/50 text-white p-2 rounded text-sm">
-          Grid: {gridSize}px<br/>
-          Threshold: {threshold.toFixed(2)}
+          {/* Threshold Slider */}
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <label className="text-white text-sm">Threshold</label>
+              <span className="text-white text-sm">{threshold.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min="-1"
+              max="1"
+              step="0.1"
+              value={threshold}
+              onChange={(e) => setThreshold(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white"
+            />
+          </div>
+
+          {/* Capture Button */}
+          <button
+            onClick={handleCapture}
+            className="w-full py-3 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg border border-white/20 text-white font-medium transition-colors"
+          >
+            Capture
+          </button>
         </div>
-      )}
+
+        {/* Safe Area Padding for iOS */}
+        <div className="h-[env(safe-area-inset-bottom)]" />
+      </div>
     </div>
   )
 }
