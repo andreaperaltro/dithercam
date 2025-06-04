@@ -1,41 +1,24 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useCallback } from 'react'
 
-function App() {
+interface BayerMatrix extends Array<number[]> {
+  [index: number]: number[];
+}
+
+function App(): React.ReactElement {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [gridSize, setGridSize] = useState(4)
-  const [threshold, setThreshold] = useState(0)
-  const animationFrameRef = useRef<number>()
-  const [showControls, setShowControls] = useState(false)
+  const [gridSize, setGridSize] = useState(() => 4)
+  const [threshold, setThreshold] = useState(() => 0)
+  const [showControls, setShowControls] = useState(() => false)
+  const animationFrameRef = useRef<number | undefined>(undefined)
 
-  // Handle touch/mouse interaction
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
-    
-    // Calculate threshold based on X position (-1 to 1)
-    const newThreshold = (x / rect.width) * 2 - 1
-    // Calculate grid size based on Y position (2 to 16)
-    const newGridSize = Math.floor(((rect.height - y) / rect.height) * 14 + 2)
-    
-    setThreshold(newThreshold)
-    setGridSize(newGridSize)
-  }, [])
-
-  const handleCapture = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    // Create a temporary link element
-    const link = document.createElement('a')
-    link.download = `dithercam-${new Date().toISOString()}.png`
-    link.href = canvas.toDataURL('image/png')
-    link.click()
-  }, [])
+  // Bayer matrix 4x4 for dithering
+  const bayerMatrix: BayerMatrix = [
+    [0, 8, 2, 10],
+    [12, 4, 14, 6],
+    [3, 11, 1, 9],
+    [15, 7, 13, 5]
+  ]
 
   useEffect(() => {
     const startCamera = async () => {
@@ -49,14 +32,14 @@ function App() {
         })
         if (videoRef.current) {
           videoRef.current.srcObject = stream
-          videoRef.current.play()
+          await videoRef.current.play()
         }
       } catch (err) {
         console.error('Error accessing camera:', err)
       }
     }
 
-    startCamera()
+    void startCamera()
 
     return () => {
       if (videoRef.current?.srcObject) {
@@ -64,6 +47,33 @@ function App() {
         tracks.forEach(track => track.stop())
       }
     }
+  }, [])
+
+  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const rect = canvas.getBoundingClientRect()
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+    
+    // Calculate threshold based on X position (-1 to 1)
+    const newThreshold = (x / rect.width) * 2 - 1
+    // Calculate grid size based on Y position (2 to 16)
+    const newGridSize = Math.floor(((rect.height - y) / rect.height) * 14 + 2)
+    
+    setThreshold(Math.max(-1, Math.min(1, newThreshold)))
+    setGridSize(Math.max(2, Math.min(16, newGridSize)))
+  }, [])
+
+  const handleCapture = useCallback(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const link = document.createElement('a')
+    link.download = `dithercam-${new Date().toISOString()}.png`
+    link.href = canvas.toDataURL('image/png')
+    link.click()
   }, [])
 
   const applyDithering = useCallback(() => {
@@ -109,20 +119,20 @@ function App() {
     const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
     const data = imageData.data
 
-    // Bayer matrix 4x4 for dithering
-    const bayerMatrix = [
-      [0, 8, 2, 10],
-      [12, 4, 14, 6],
-      [3, 11, 1, 9],
-      [15, 7, 13, 5]
-    ]
-
     // Apply dithering effect
     for (let y = 0; y < canvas.height; y += gridSize) {
       for (let x = 0; x < canvas.width; x += gridSize) {
         const i = (y * canvas.width + x) * 4
-        const gray = (data[i] + data[i + 1] + data[i + 2]) / 3
-        const bayerValue = bayerMatrix[y % 4][x % 4]
+        if (i >= data.length - 4) continue
+
+        const r = data[i] || 0
+        const g = data[i + 1] || 0
+        const b = data[i + 2] || 0
+        const gray = (r + g + b) / 3
+
+        const bayerX = Math.abs(x % 4)
+        const bayerY = Math.abs(y % 4)
+        const bayerValue = bayerMatrix[bayerY]?.[bayerX] ?? 8 // Fallback to middle value if undefined
         const normalizedBayer = (bayerValue / 16) - 0.5
         const isWhite = (gray / 255) > (0.5 + normalizedBayer + threshold)
         
@@ -133,7 +143,7 @@ function App() {
 
     // Request next frame
     animationFrameRef.current = requestAnimationFrame(applyDithering)
-  }, [gridSize, threshold])
+  }, [gridSize, threshold, bayerMatrix])
 
   useEffect(() => {
     const animate = () => {
