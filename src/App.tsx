@@ -154,65 +154,67 @@ function App(): React.ReactElement {
       {/* Fullscreen canvas */}
       <canvas
         ref={canvasRef}
-        className="w-full h-full"
+        className="absolute inset-0 w-full h-full"
         style={{ 
           imageRendering: 'pixelated',
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
           objectFit: 'cover'
         }}
       />
 
       {/* Floating Control Panel */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur-sm">
-        <div className="max-w-lg mx-auto space-y-4">
-          {/* Grid Size Slider */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-white text-sm">Grid Size</label>
-              <span className="text-white text-sm">{gridSize}px</span>
+      <div className="absolute bottom-0 left-0 right-0 z-50">
+        <div className="bg-black/80 backdrop-blur-sm p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="max-w-lg mx-auto space-y-4">
+            {/* Grid Size Slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-white text-sm font-medium">Grid Size</label>
+                <span className="text-white/80 text-sm">{gridSize}px</span>
+              </div>
+              <input
+                type="range"
+                min="2"
+                max="16"
+                value={gridSize}
+                onChange={(e) => setGridSize(parseInt(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white"
+                style={{
+                  WebkitAppearance: 'none',
+                  appearance: 'none'
+                }}
+              />
             </div>
-            <input
-              type="range"
-              min="2"
-              max="16"
-              value={gridSize}
-              onChange={(e) => setGridSize(parseInt(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white"
-            />
-          </div>
 
-          {/* Threshold Slider */}
-          <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <label className="text-white text-sm">Threshold</label>
-              <span className="text-white text-sm">{threshold.toFixed(2)}</span>
+            {/* Threshold Slider */}
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <label className="text-white text-sm font-medium">Threshold</label>
+                <span className="text-white/80 text-sm">{threshold.toFixed(2)}</span>
+              </div>
+              <input
+                type="range"
+                min="-1"
+                max="1"
+                step="0.1"
+                value={threshold}
+                onChange={(e) => setThreshold(parseFloat(e.target.value))}
+                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white"
+                style={{
+                  WebkitAppearance: 'none',
+                  appearance: 'none'
+                }}
+              />
             </div>
-            <input
-              type="range"
-              min="-1"
-              max="1"
-              step="0.1"
-              value={threshold}
-              onChange={(e) => setThreshold(parseFloat(e.target.value))}
-              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-white"
-            />
-          </div>
 
-          {/* Capture Button */}
-          <button
-            onClick={handleCapture}
-            className="w-full py-3 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg border border-white/20 text-white font-medium transition-colors"
-          >
-            Capture
-          </button>
+            {/* Capture Button */}
+            <button
+              onClick={handleCapture}
+              className="w-full py-3 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg border border-white/20 text-white font-medium transition-colors"
+            >
+              Capture
+            </button>
+          </div>
         </div>
-
-        {/* Safe Area Padding for iOS */}
-        <div className="h-[env(safe-area-inset-bottom)]" />
       </div>
     </div>
   )
