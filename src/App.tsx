@@ -140,33 +140,31 @@ function App(): React.ReactElement {
   }, [])
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-black">
-      {/* Camera feed container */}
-      <div className="relative flex-1">
-        <video
-          ref={videoRef}
-          className="hidden"
-          playsInline
-          muted
-        />
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full"
-          style={{ imageRendering: 'pixelated' }}
-        />
-      </div>
+    <main className="fixed inset-0 bg-black">
+      {/* Hidden video */}
+      <video
+        ref={videoRef}
+        className="hidden"
+        playsInline
+        muted
+      />
+      
+      {/* Fullscreen canvas */}
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full"
+        style={{ imageRendering: 'pixelated' }}
+      />
 
-      {/* Control panel */}
-      <div className="relative z-10 bg-black/80 backdrop-blur-md border-t border-white/10">
-        <div className="max-w-lg mx-auto p-4 space-y-4">
-          {/* Grid Size */}
+      {/* Floating controls */}
+      <div className="absolute bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+        <div className="bg-black/60 backdrop-blur-sm rounded-2xl p-4 max-w-sm mx-auto space-y-4">
           <div>
-            <div className="flex justify-between items-center mb-2">
-              <label htmlFor="grid-size" className="text-white text-sm font-medium">Grid Size</label>
-              <span className="text-white/70 text-sm">{gridSize}px</span>
+            <div className="flex justify-between text-white text-sm mb-1">
+              <span>Grid Size</span>
+              <span>{gridSize}px</span>
             </div>
             <input
-              id="grid-size"
               type="range"
               min="2"
               max="16"
@@ -176,14 +174,12 @@ function App(): React.ReactElement {
             />
           </div>
 
-          {/* Threshold */}
           <div>
-            <div className="flex justify-between items-center mb-2">
-              <label htmlFor="threshold" className="text-white text-sm font-medium">Threshold</label>
-              <span className="text-white/70 text-sm">{threshold.toFixed(2)}</span>
+            <div className="flex justify-between text-white text-sm mb-1">
+              <span>Threshold</span>
+              <span>{threshold.toFixed(2)}</span>
             </div>
             <input
-              id="threshold"
               type="range"
               min="-1"
               max="1"
@@ -194,19 +190,15 @@ function App(): React.ReactElement {
             />
           </div>
 
-          {/* Capture Button */}
           <button
             onClick={handleCapture}
-            className="w-full py-3 px-4 bg-white/10 hover:bg-white/20 active:bg-white/30 rounded-lg text-white font-medium transition-colors"
+            className="w-full bg-white/20 hover:bg-white/30 active:bg-white/40 backdrop-blur-sm rounded-lg py-2 text-white font-medium transition-colors"
           >
             Capture
           </button>
         </div>
-        
-        {/* iOS Safe Area */}
-        <div className="h-[env(safe-area-inset-bottom)]" />
       </div>
-    </div>
+    </main>
   )
 }
 
