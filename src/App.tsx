@@ -1,206 +1,176 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react'
-
-interface BayerMatrix extends Array<number[]> {
-  [index: number]: number[];
-}
+import React, { useEffect, useRef, useState } from 'react'
 
 function App(): React.ReactElement {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [gridSize, setGridSize] = useState(() => 4)
-  const [threshold, setThreshold] = useState(() => 0)
-  const animationFrameRef = useRef<number | undefined>(undefined)
+  const [gridSize, setGridSize] = useState<number>(4)
+  const [threshold, setThreshold] = useState<number>(0)
+  const frameRef = useRef<number>()
 
-  // Bayer matrix 4x4 for dithering
-  const bayerMatrix: BayerMatrix = [
-    [0, 8, 2, 10],
-    [12, 4, 14, 6],
-    [3, 11, 1, 9],
-    [15, 7, 13, 5]
-  ]
-
+  // Initialize camera
   useEffect(() => {
-    const startCamera = async () => {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
-            facingMode: 'environment',
-            width: { ideal: window.innerWidth },
-            height: { ideal: window.innerHeight }
-          } 
-        })
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream
-          await videoRef.current.play()
-        }
-      } catch (err) {
-        console.error('Error accessing camera:', err)
-      }
-    }
+    const video = videoRef.current
+    if (!video) return
 
-    void startCamera()
+    navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: 'environment',
+        width: { ideal: window.innerWidth },
+        height: { ideal: window.innerHeight }
+      }
+    })
+    .then(stream => {
+      video.srcObject = stream
+      video.play()
+    })
+    .catch(err => console.error('Camera error:', err))
 
     return () => {
-      if (videoRef.current?.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-        tracks.forEach(track => track.stop())
-      }
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
+      const tracks = video.srcObject as MediaStream
+      tracks?.getTracks().forEach(track => track.stop())
+      if (frameRef.current) cancelAnimationFrame(frameRef.current)
     }
   }, [])
 
-  const applyDithering = useCallback(() => {
+  // Dithering effect
+  useEffect(() => {
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas) return
 
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })
+    const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas size to match display size
-    const rect = canvas.getBoundingClientRect()
-    canvas.width = rect.width * window.devicePixelRatio
-    canvas.height = rect.height * window.devicePixelRatio
+    const bayer4x4 = [
+      [ 0,  8,  2, 10],
+      [12,  4, 14,  6],
+      [ 3, 11,  1,  9],
+      [15,  7, 13,  5]
+    ]
 
-    // Calculate video scaling
-    const scale = Math.max(
-      canvas.width / video.videoWidth,
-      canvas.height / video.videoHeight
-    )
-    const scaledWidth = video.videoWidth * scale
-    const scaledHeight = video.videoHeight * scale
-    const x = (canvas.width - scaledWidth) / 2
-    const y = (canvas.height - scaledHeight) / 2
+    const render = () => {
+      // Match canvas to screen size
+      canvas.width = window.innerWidth * window.devicePixelRatio
+      canvas.height = window.innerHeight * window.devicePixelRatio
 
-    // Create temporary canvas for video frame
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = canvas.width
-    tempCanvas.height = canvas.height
-    const tempCtx = tempCanvas.getContext('2d')
-    if (!tempCtx) return
+      // Scale video to fill canvas
+      const scale = Math.max(
+        canvas.width / video.videoWidth,
+        canvas.height / video.videoHeight
+      )
+      const w = video.videoWidth * scale
+      const h = video.videoHeight * scale
+      const x = (canvas.width - w) / 2
+      const y = (canvas.height - h) / 2
 
-    // Draw and scale video frame
-    tempCtx.fillStyle = '#000000'
-    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height)
-    tempCtx.drawImage(video, x, y, scaledWidth, scaledHeight)
+      // Draw video frame
+      ctx.fillStyle = 'black'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.drawImage(video, x, y, w, h)
 
-    // Get frame data
-    const imageData = tempCtx.getImageData(0, 0, canvas.width, canvas.height)
-    const data = imageData.data
+      // Get frame data
+      const frame = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const data = frame.data
 
-    // Clear canvas
-    ctx.fillStyle = '#000000'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+      // Apply dithering
+      for (let y = 0; y < canvas.height; y += gridSize) {
+        for (let x = 0; x < canvas.width; x += gridSize) {
+          const i = (y * canvas.width + x) * 4
+          if (i >= data.length - 4) continue
 
-    // Apply dithering effect
-    for (let y = 0; y < canvas.height; y += gridSize) {
-      for (let x = 0; x < canvas.width; x += gridSize) {
-        const i = (y * canvas.width + x) * 4
-        if (i >= data.length - 4) continue
+          // Convert to grayscale
+          const gray = (data[i] + data[i + 1] + data[i + 2]) / 3 / 255
 
-        const r = data[i] || 0
-        const g = data[i + 1] || 0
-        const b = data[i + 2] || 0
-        const gray = (r + g + b) / 3
+          // Apply Bayer dithering
+          const bayerValue = bayer4x4[y % 4][x % 4] / 16 - 0.5
+          const isWhite = gray > 0.5 + bayerValue + threshold
 
-        const bayerX = Math.abs(x % 4)
-        const bayerY = Math.abs(y % 4)
-        const bayerValue = bayerMatrix[bayerY]?.[bayerX] ?? 8
-        const normalizedBayer = (bayerValue / 16) - 0.5
-        const isWhite = (gray / 255) > (0.5 + normalizedBayer + threshold)
-        
-        ctx.fillStyle = isWhite ? '#FFFFFF' : '#0000FF'
-        ctx.fillRect(x, y, gridSize, gridSize)
+          // Draw pixel
+          ctx.fillStyle = isWhite ? 'white' : 'blue'
+          ctx.fillRect(x, y, gridSize, gridSize)
+        }
       }
+
+      frameRef.current = requestAnimationFrame(render)
     }
 
-    // Request next frame
-    animationFrameRef.current = requestAnimationFrame(applyDithering)
-  }, [gridSize, threshold, bayerMatrix])
-
-  useEffect(() => {
-    animationFrameRef.current = requestAnimationFrame(applyDithering)
+    frameRef.current = requestAnimationFrame(render)
     return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current)
-      }
+      if (frameRef.current) cancelAnimationFrame(frameRef.current)
     }
-  }, [applyDithering])
+  }, [gridSize, threshold])
 
-  const handleCapture = useCallback(() => {
+  // Screenshot function
+  const takeScreenshot = () => {
     const canvas = canvasRef.current
     if (!canvas) return
-
+    
     const link = document.createElement('a')
-    link.download = `dithercam-${new Date().toISOString()}.png`
-    link.href = canvas.toDataURL('image/png')
+    link.download = `dithercam-${Date.now()}.png`
+    link.href = canvas.toDataURL()
     link.click()
-  }, [])
+  }
 
   return (
-    <div className="fixed inset-0 overflow-hidden touch-none select-none bg-black">
+    <div className="fixed inset-0 bg-black overflow-hidden">
       {/* Hidden video element */}
-      <video
+      <video 
         ref={videoRef}
         className="hidden"
-        playsInline
+        playsInline 
         muted
       />
-      
-      {/* Full viewport canvas */}
+
+      {/* Fullscreen canvas */}
       <canvas
         ref={canvasRef}
-        className="w-screen h-screen object-cover"
+        className="w-full h-full"
         style={{ imageRendering: 'pixelated' }}
       />
 
-      {/* Floating drawer */}
-      <div className="fixed bottom-0 left-0 right-0">
-        <div className="bg-black/80 backdrop-blur-md px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <div className="max-w-sm mx-auto space-y-4">
-            {/* Grid Size slider */}
-            <div>
-              <div className="flex justify-between text-white mb-2">
-                <span>Grid Size</span>
-                <span>{gridSize}px</span>
-              </div>
-              <input
-                type="range"
-                min="2"
-                max="16"
-                value={gridSize}
-                onChange={(e) => setGridSize(parseInt(e.target.value))}
-                className="w-full"
-              />
+      {/* Controls drawer */}
+      <div className="fixed bottom-0 left-0 right-0 bg-black/80 backdrop-blur-lg">
+        <div className="max-w-sm mx-auto px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] space-y-4">
+          {/* Grid size control */}
+          <div>
+            <div className="flex justify-between text-white mb-2">
+              <span>Grid Size</span>
+              <span>{gridSize}px</span>
             </div>
-
-            {/* Threshold slider */}
-            <div>
-              <div className="flex justify-between text-white mb-2">
-                <span>Threshold</span>
-                <span>{threshold.toFixed(2)}</span>
-              </div>
-              <input
-                type="range"
-                min="-1"
-                max="1"
-                step="0.1"
-                value={threshold}
-                onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                className="w-full"
-              />
-            </div>
-
-            {/* Capture button */}
-            <button
-              onClick={handleCapture}
-              className="w-full bg-white/20 hover:bg-white/30 active:bg-white/40 py-3 rounded-lg text-white font-medium"
-            >
-              Capture
-            </button>
+            <input
+              type="range"
+              min="2"
+              max="16"
+              value={gridSize}
+              onChange={e => setGridSize(Number(e.target.value))}
+              className="w-full"
+            />
           </div>
+
+          {/* Threshold control */}
+          <div>
+            <div className="flex justify-between text-white mb-2">
+              <span>Threshold</span>
+              <span>{threshold.toFixed(2)}</span>
+            </div>
+            <input
+              type="range"
+              min="-0.5"
+              max="0.5"
+              step="0.05"
+              value={threshold}
+              onChange={e => setThreshold(Number(e.target.value))}
+              className="w-full"
+            />
+          </div>
+
+          {/* Screenshot button */}
+          <button
+            onClick={takeScreenshot}
+            className="w-full py-3 bg-white/20 hover:bg-white/30 active:bg-white/40 rounded-lg text-white font-medium"
+          >
+            Take Screenshot
+          </button>
         </div>
       </div>
     </div>
